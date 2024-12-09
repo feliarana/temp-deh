@@ -1,0 +1,24 @@
+* how to use
+
+1. Save your list of issues in a text file like:
+   #+begin_src text
+   https://petscreening.atlassian.net/browse/LTR-1125
+   https://petscreening.atlassian.net/browse/LTR-1375
+   https://petscreening.atlassian.net/browse/LTR-1359
+   https://petscreening.atlassian.net/browse/LTR-1384
+   https://petscreening.atlassian.net/browse/LTR-1303
+   https://petscreening.atlassian.net/browse/LTR-1125
+   https://petscreening.atlassian.net/browse/PI-524
+   https://petscreening.atlassian.net/browse/PI-359
+   #+end_src
+2. Grab a jira token from: https://id.atlassian.com/manage-profile/security/api-tokens
+3. Export the token and your jira username before running the script
+   #+begin_src bash
+   export JIRA_API_TOKEN="<your-token>"
+   export JIRA_USERNAME="<your-username>"
+   #+end_src
+4. Run the script
+   #+begin_src bash
+   chmod +x jira.sh
+   ./jira.sh "v1.1.0" ~/path/to/changelog.md ~/path/to/file/with/issues
+   #+end_src

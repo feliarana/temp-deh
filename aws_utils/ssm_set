@@ -1,0 +1,67 @@
+#!/bin/bash
+
+# Check if the AWS CLI is installed
+if ! command -v aws &> /dev/null
+then
+    echo "AWS CLI could not be found. Please install it to run this script."
+    exit 1
+fi
+
+# Validate the input
+if [ "$#" -lt 2 ]; then
+    echo "Usage: $0 <environment> <parameter-name> [--ltr]"
+    exit 1
+fi
+
+SUFFIX="_mi"
+
+if [ "$3" == "--ltr" ]; then
+    SUFFIX=""
+fi
+
+# Set prefix based on the environment
+case $1 in
+    qa)
+        PREFIX="/ps_qa_key$SUFFIX/"
+        ;;
+    uat)
+        PREFIX="/ps_uat_key$SUFFIX/"
+        ;;
+    rc)
+        PREFIX="/ps_rc_key$SUFFIX/"
+        ;;
+    testinfra)
+        PREFIX="/ps_testinfra_key$SUFFIX/"
+        ;;
+    prod)
+        PREFIX="/ps_prod_key$SUFFIX/"
+        ;;
+    *)
+        echo "Invalid environment: $1. Valid options are: qa, uat, rc, testinfra, prod"
+        exit 1
+        ;;
+esac
+
+# Fetch parameter name
+PARAM_NAME=$2
+
+# Fetch the parameter using AWS CLI
+PARAM_VALUE=$(aws ssm get-parameter --name "$PREFIX$PARAM_NAME" --query Parameter.Value --output text 2>/dev/null)
+
+if [ -n "$PARAM_VALUE" ]; then
+    # Parameter exists, display existing value
+    echo "Existing value for parameter '$PARAM_NAME': $PARAM_VALUE"
+    read -rp "Do you want to replace it? (y/n): " REPLACE
+    if [ "$REPLACE" != "y" ]; then
+        echo "Exiting without making any changes."
+        exit 0
+    fi
+fi
+
+# Prompt user for parameter value
+read -rp "Enter new value for parameter '$PARAM_NAME': " NEW_PARAM_VALUE
+
+# Update or create the parameter using AWS CLI
+aws ssm put-parameter --name "$PREFIX$PARAM_NAME" --value "$NEW_PARAM_VALUE" --type String --overwrite
+
+echo "Parameter '$PARAM_NAME' updated/created successfully with value: $NEW_PARAM_VALUE"

@@ -1,0 +1,111 @@
+#!/bin/bash
+
+# Usage:
+# my_array=("option1" "option2" "option3" "option4")
+# choose_parameter "${my_array[@]}"
+# selected_index=$?
+# selected_choice=${my_array[selected_index]}
+# echo "Selected choice is: $selected_choice"
+choose_parameter() {
+  OPTIONS=("$@")
+  echo "Please choose an option:"
+  for ((i=1; i<=${#OPTIONS[@]}; i++)); do
+       echo "${i}. ${OPTIONS[i-1]}"
+  done
+
+  while true; do
+      read -p "Enter the number corresponding to your choice: " choice
+
+      # Check if the input is a number
+      if [[ "$choice" =~ ^[0-9]+$ ]]; then
+          if (( choice >= 1 && choice <= ${#OPTIONS[@]} )); then
+            echo "You chose: ${OPTIONS[choice-1]}"
+            return $((choice-1))
+          else
+            echo "Invalid choice. Please enter a number between 1 and ${#OPTIONS[@]}."
+          fi
+      else
+          echo "Invalid input. Please enter a valid number."
+      fi
+  done
+}
+
+# Usage:
+# exec_into_task
+function exec_into_task() {
+  # Check if the AWS CLI is installed
+  if ! command -v aws &> /dev/null
+  then
+      echo "AWS CLI could not be found. Please install it to run this script."
+      exit 1
+  fi
+
+  CLUSTERS=$(aws ecs list-clusters | jq -r '.[]')
+
+  clusters_array=()
+  for element in $(echo "$CLUSTERS" | jq -r '.[]'); do
+    shortened_element=$(echo "$element" | sed 's|.*\/||')
+    clusters_array+=("$shortened_element")
+  done
+
+  # Sorting the array in Bash
+  IFS=$'\n' sorted_clusters_array=($(sort <<<"${clusters_array[*]}"))
+  unset IFS
+
+  # If you want to keep the sorted result in the original array
+  clusters_array=("${sorted_clusters_array[@]}")
+
+  choose_parameter "${clusters_array[@]}"
+  selected_index=$?
+  selected_cluster=${clusters_array[selected_index]}
+  echo "Selected cluster is: $selected_cluster"
+  echo ""
+
+  SERVICES=$(aws ecs list-services --cluster "$selected_cluster" | jq -r '.[]')
+
+  services_array=()
+  for element in $(echo $SERVICES | jq -r '.[]'); do
+    shortened_element=$(echo "$element" | sed 's|[^/]*/[^/]*/||')
+    services_array+=("$shortened_element")
+  done
+
+  # Sorting the array in Bash
+  IFS=$'\n' sorted_services_array=($(sort <<<"${services_array[*]}"))
+  unset IFS
+
+  # If you want to keep the sorted result in the original array
+  services_array=("${sorted_services_array[@]}")
+
+  echo "Now please select one of the following services in your selected cluster"
+  choose_parameter "${services_array[@]}"
+  selected_index=$?
+  selected_service=${services_array[selected_index]}
+  echo "Selected service is: $selected_service"
+  echo ""
+
+  TASKS=$(aws ecs list-tasks --cluster "$selected_cluster" --service-name "$selected_service" | jq -r '.[]')
+  tasks_array=()
+  for element in $(echo $TASKS | jq -r '.[]'); do
+    shortened_element=$(echo "$element" | sed 's|[^/]*/[^/]*/||')
+    tasks_array+=("$shortened_element")
+  done
+
+  echo "Now please select one of the following tasks in your selected service"
+  choose_parameter "${tasks_array[@]}"
+  selected_index=$?
+  selected_task=${tasks_array[selected_index]}
+  echo "Selected task is: $selected_task"
+  echo ""
+
+  task_description=$(aws ecs describe-tasks --cluster "$selected_cluster" --tasks "$selected_task" | jq .)
+  task_ipaddr=$(echo "$task_description" | jq -r '.tasks[0].containers[0].networkInterfaces[0].privateIpv4Address')
+  container_name=$(echo "$task_description" | jq -r '.tasks[0].containers[0].name')
+
+  echo ""
+  echo "Logging into $selected_task (container = $container_name) -> $task_ipaddr"
+  echo ""
+
+  aws ecs execute-command --region us-east-1 --cluster "$selected_cluster" --task "$selected_task" --container "$container_name" --command "/bin/sh" --interactive
+}
+
+exec_into_task

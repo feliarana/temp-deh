@@ -1,0 +1,9 @@
+#!/bin/bash
+
+tunnel-qa-integrations() {
+	aws ssm start-session --target i-07360909d89460b5f \
+    	--document-name AWS-StartPortForwardingSessionToRemoteHost \
+    	--parameters '{"portNumber":["5432"],"localPortNumber":["5437"],"host":["qa-integrationsdatabasest-postgresinstance19cdd68a-pvqxczg4nto0.c1a3u3ehyoj2.us-east-1.rds.amazonaws.com"]}'
+}
+
+tunnel-qa-integrations

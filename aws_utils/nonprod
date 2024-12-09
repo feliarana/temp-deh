@@ -1,0 +1,45 @@
+#!/bin/bash
+
+# AWS Account ID and Role Name
+AWS_ACCOUNT_ID="163388034490"
+ROLE_NAME="NonProdRole"
+
+# Correctly construct the role ARN
+ROLE_ARN="arn:aws:iam::${AWS_ACCOUNT_ID}:role/${ROLE_NAME}"
+ROLE_SESSION_NAME="AssumeRoleSession"
+
+# Assume the role and capture the output
+TEMP_CREDENTIALS=$(aws sts assume-role --role-arn $ROLE_ARN --role-session-name $ROLE_SESSION_NAME 2>&1)
+
+# Check if the assume-role command was successful
+if [ $? -ne 0 ]; then
+  echo "Failed to assume role $ROLE_NAME."
+  echo "Error: $TEMP_CREDENTIALS"
+  return 1
+fi
+
+# Extract the credentials using jq
+AWS_ACCESS_KEY_ID=$(echo $TEMP_CREDENTIALS | jq -r '.Credentials.AccessKeyId')
+AWS_SECRET_ACCESS_KEY=$(echo $TEMP_CREDENTIALS | jq -r '.Credentials.SecretAccessKey')
+AWS_SESSION_TOKEN=$(echo $TEMP_CREDENTIALS | jq -r '.Credentials.SessionToken')
+
+if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ] || [ -z "$AWS_SESSION_TOKEN" ]; then
+  echo "Failed to extract temporary credentials."
+  return 1
+fi
+
+# Set the environment variables
+export AWS_ACCESS_KEY_ID
+export AWS_SECRET_ACCESS_KEY
+export AWS_SESSION_TOKEN
+
+# Verify the assumed role by running aws sts get-caller-identity
+CALLER_IDENTITY=$(aws sts get-caller-identity)
+
+if [ $? -eq 0 ]; then
+  echo "Successfully assumed role $ROLE_NAME."
+  echo "Caller Identity: $CALLER_IDENTITY"
+else
+  echo "Failed to verify assumed role $ROLE_NAME."
+  return 1
+fi

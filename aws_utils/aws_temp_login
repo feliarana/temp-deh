@@ -1,0 +1,50 @@
+#!/bin/bash
+
+function aws_temp_login() {
+    unset AWS_ACCESS_KEY_ID
+    unset AWS_SECRET_ACCESS_KEY
+    unset AWS_SESSION_TOKEN
+    unset AWS_REGION
+    unset AWS_DEFAULT_REGION
+
+    export AWS_ACCESS_KEY_ID=$(op read "op://Private/AWS Access Key/access key id")
+    export AWS_SECRET_ACCESS_KEY=$(op read "op://Private/AWS Access Key/secret access key")
+
+    # Construct the ARN for your MFA device
+    MFA_DEVICE_ARN=$(op read "op://Private/AWS Access Key/mfa serial")
+
+    # Check if we got the MFA code
+    if [ -z "$MFA_DEVICE_ARN" ]; then
+        echo "Failed to retrieve MFA Device ARN from 1Password"
+        return 1
+    fi
+
+    # Use the op CLI to get the MFA code
+    MFA_CODE=$(op read "op://Private/AWS Access Key/one-time password?attribute=otp")
+
+    # Check if we got the MFA code
+    if [ -z "$MFA_CODE" ]; then
+        echo "Failed to retrieve MFA code from 1Password"
+        return 1
+    fi
+
+    # Use the AWS CLI to get the temporary credentials
+    TEMP_CREDS=$(aws sts get-session-token --serial-number $MFA_DEVICE_ARN --token-code $MFA_CODE)
+
+    # Check if we successfully got the temporary credentials
+    if [ -z "$TEMP_CREDS" ]; then
+        echo "Failed to get temporary credentials from AWS STS"
+        return 1
+    fi
+
+    # Export the temporary credentials as environment variables
+    export AWS_ACCESS_KEY_ID=$(echo $TEMP_CREDS | jq -r '.Credentials.AccessKeyId')
+    export AWS_SECRET_ACCESS_KEY=$(echo $TEMP_CREDS | jq -r '.Credentials.SecretAccessKey')
+    export AWS_SESSION_TOKEN=$(echo $TEMP_CREDS | jq -r '.Credentials.SessionToken')
+    export AWS_REGION=us-east-1
+    export AWS_DEFAULT_REGION=us-east-1
+
+    echo "Temporary AWS credentials set in the current session."
+}
+
+aws_temp_login

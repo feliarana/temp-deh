@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+
+# Get the directory where the install script is located
+DEVOPS_TOOLS_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Function to check if the path is already in the PATH variable
+path_exists() {
+    echo "$PATH" | grep -q "$DEVOPS_TOOLS_PATH"
+}
+
+# Detect the user's shell from the SHELL environment variable
+detect_shell() {
+    case "$SHELL" in
+        */zsh)
+            SHELL_RC="$HOME/.zshrc"
+            ;;
+        */bash)
+            SHELL_RC="$HOME/.bashrc"
+            ;;
+        */ksh)
+            SHELL_RC="$HOME/.kshrc"
+            ;;
+        *)
+            SHELL_RC="$HOME/.profile" # Default if no specific shell is detected
+            ;;
+    esac
+}
+
+# Add path to the shell config file if it's not already there
+add_path_to_rc() {
+    if path_exists; then
+        echo "Path already exists in PATH variable."
+    else
+        # Build the PATH addition
+        NEW_PATH="$DEVOPS_TOOLS_PATH/aws_utils:$DEVOPS_TOOLS_PATH/db_utils:\$PATH"
+        # Append to the shell config file
+        echo "export PATH=\"$NEW_PATH\"" >> "$SHELL_RC"
+        echo "Added devops-tools to your PATH in $SHELL_RC"
+    fi
+}
+
+# Reload the shell configuration file
+reload_shell() {
+    exec "$SHELL"
+    echo "Shell reloaded. devops-tools is now available."
+}
+
+# Main execution
+detect_shell
+add_path_to_rc
+reload_shell

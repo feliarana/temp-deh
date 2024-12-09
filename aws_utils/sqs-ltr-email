@@ -1,0 +1,39 @@
+#!/bin/bash
+
+# Check if two arguments are provided
+if [ $# -ne 2 ]; then
+  echo "Usage: $0 <environment> <path-to-email-html>"
+  exit 1
+fi
+
+# Assign arguments to variables
+ENVIRONMENT="$1"
+EMAIL_FILE="$2"
+
+# Define SQS Queue URLs for different environments
+case "$ENVIRONMENT" in
+  "qa")
+    QUEUE_URL="https://sqs.us-east-1.amazonaws.com/163388034490/qa-ltr-notifications-queue"
+    ;;
+  "prod")
+    QUEUE_URL="https://sqs.us-east-1.amazonaws.com/163388034490/prod-ltr-notifications-queue"
+    ;;
+  *)
+    echo "Error: Unknown environment '$ENVIRONMENT'. Please use 'qa' or 'prod'."
+    exit 1
+    ;;
+esac
+
+# Check if the email file exists
+if [ ! -f "$EMAIL_FILE" ]; then
+  echo "Error: File '$EMAIL_FILE' not found!"
+  exit 1
+fi
+
+# Send the message to the appropriate SQS queue
+aws sqs send-message \
+    --queue-url "$QUEUE_URL" \
+    --message-body "$(cat "$EMAIL_FILE")"
+
+# Print a success message
+echo "Email content from '$EMAIL_FILE' sent to the '$ENVIRONMENT' SQS queue."

@@ -1,0 +1,81 @@
+#!/bin/bash
+
+# Check if the AWS CLI is installed
+if ! command -v aws &> /dev/null
+then
+    echo "AWS CLI could not be found. Please install it to run this script."
+    exit 1
+fi
+
+# Validate the input
+if [ "$#" -lt 2 ]; then
+    echo "Usage: $0 <environment> <parameter-name> [--ltr]"
+    exit 1
+fi
+
+SUFFIX="_mi"
+
+if [ "$3" == "--ltr" ]; then
+    SUFFIX=""
+fi
+
+# Set prefix based on the environment
+case $1 in
+    qa)
+        PREFIX="/ps_qa_key$SUFFIX/"
+        ;;
+    uat)
+        PREFIX="/ps_uat_key$SUFFIX/"
+        ;;
+    rc)
+        PREFIX="/ps_rc_key$SUFFIX/"
+        ;;
+    testinfra)
+        PREFIX="/ps_testinfra_key$SUFFIX/"
+        ;;
+    prod)
+        PREFIX="/ps_prod_key$SUFFIX/"
+        ;;
+    *)
+        echo "Invalid environment: $1. Valid options are: qa, uat, rc, testinfra, prod"
+        exit 1
+        ;;
+esac
+
+# Fetch environment and search text
+SEARCH_TEXT=$2
+
+PARAMETERS=$( \
+aws ssm describe-parameters \
+    --max-items 100 \
+    --parameter-filters Key="Name",Option="Contains",Values="$PREFIX" \
+    --query "Parameters[*].Name" \
+    --output json | jq -r '.[]'
+)
+
+if [ -z "$PARAMETERS" ]; then
+    echo "No parameters found for environment '$1' with search text '$SEARCH_TEXT'."
+    exit 1
+fi
+
+FILTERED_PARAMETERS=""
+if [[ "$SEARCH_TEXT" == "ALL" ]]; then
+  echo "Finding ALL parameters with the prefix=$PREFIX"
+  FILTERED_PARAMETERS="$PARAMETERS"
+else
+  # Filter the results by the search text
+  FILTERED_PARAMETERS=$(echo "$PARAMETERS" | grep -i "$SEARCH_TEXT")
+  if [ -z "$FILTERED_PARAMETERS" ]; then
+    echo "Error: No AWS parameters found that match ${PREFIX} and filter string '${SEARCH_TEXT}'. Exiting"
+    exit 1
+  fi
+fi
+
+FILTERED_PARAMETERS=$(echo "$FILTERED_PARAMETERS" | sort)
+echo "Parameters that match prefix '${PREFIX}' and contain '${SEARCH_TEXT}':"
+echo "$FILTERED_PARAMETERS" | while IFS= read -r param; do
+  if [[ -n "$param" ]]; then
+    value=$(aws ssm get-parameter --name "$param" --with-decryption --output json | jq -r ".Parameter.Value")
+    echo "$param='$value'"
+  fi
+done

@@ -1,0 +1,7 @@
+#! /bin/bash
+tunnel-uat-ltr() {
+	  aws ssm start-session --target i-0ffb8196427ab78fe \
+    	--document-name AWS-StartPortForwardingSessionToRemoteHost \
+    	--parameters '{"portNumber":["5432"],"localPortNumber":["5435"],"host":["psuatpg.c1a3u3ehyoj2.us-east-1.rds.amazonaws.com"]}'
+}
+tunnel-uat-ltr
